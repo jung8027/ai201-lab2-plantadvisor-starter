@@ -70,7 +70,8 @@ likely match for clean user input. Aliases are the broadest net, so they go last
 *Aliases are stored as a list of strings. How will you check if the normalized input matches any alias in the list? Write your approach in pseudocode or plain English.*
 
 ```
-[your answer here]
+normalize the user input and check through plants
+loop through the database through normal plant name and plant alias name
 ```
 
 ---
@@ -80,7 +81,13 @@ likely match for clean user input. Aliases are the broadest net, so they go last
 *When a plant isn't found, the agent will read your message and use it to decide what to tell the user. Write the exact string you'll return — make it useful to the agent, not just to a human reading logs.*
 
 ```
-[your answer here]
+f"No plant matching '{plant_name}' was found in the database. "
+"Do not invent specific care parameters. Acknowledge the missing data, "
+"offer general care guidance based on what the user describes, and "
+"suggest they consult a trusted plant resource for precise details."
+
+This message is addressed to the LLM, not the user — it tells the model exactly how to
+behave so it doesn't hallucinate watering schedules or light levels for unknown plants.
 ```
 
 ---
@@ -91,17 +98,24 @@ likely match for clean user input. Aliases are the broadest net, so they go last
 
 **Test: does `"devil's ivy"` return the pothos entry?**
 ```
-[yes / no — if no, describe what happened]
+Yes. "devil's ivy" normalizes to "devil's ivy", which appears in pothos' aliases list:
+["golden pothos", "devil's ivy", "hunter's robe", "silver vine"]. The alias match in step 3
+catches it via any(alias.lower() == normalized for alias in plant.get("aliases", [])).
 ```
 
 **Test: does `"SNAKE PLANT"` return the snake plant entry?**
 ```
-[yes / no — if no, describe what happened]
+Yes. "SNAKE PLANT" normalizes to "snake plant". The DB key is "snake_plant" (with
+underscore), so the direct key lookup misses. The display name check in step 2 matches
+because plant["display_name"].lower() == "snake plant" == normalized.
 ```
 
 **One edge case you discovered while implementing:**
 ```
-[your answer here]
+DB keys use underscores (e.g., "snake_plant", "zz_plant") but users type spaces. This means
+almost every real plant name falls through the O(1) direct key lookup and relies on the
+display name match. The three-step search order is necessary; a key-only lookup would miss
+most plants.
 ```
 
 ---
@@ -183,12 +197,15 @@ The full season dict from `_season_data`, plus a `detected_season` boolean. Exam
 
 **Test: does calling with `season=None` return the correct season for the current month?**
 ```
-Current month: [month]
-Expected season: [season]
-Returned season: [season]
+Current month: June (month 6)
+Expected season: summer
+Returned season: summer ✓
+(_MONTH_TO_SEASON maps 6 → "summer"; detected_season=True)
 ```
 
 **Test: does calling with `season="winter"` return winter data regardless of the current month?**
 ```
-[yes / no]
+Yes. The condition `if season and season.lower() in VALID_SEASONS` is True for "winter",
+so the function uses "winter" directly and sets detected_season=False without ever calling
+datetime.now().
 ```

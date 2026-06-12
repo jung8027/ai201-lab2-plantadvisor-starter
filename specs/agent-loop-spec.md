@@ -122,7 +122,14 @@ for tool_call in assistant_message.tool_calls:
 *The loop should stop when: (a) the LLM returns a response with no tool calls, OR (b) the MAX_TOOL_ROUNDS limit is reached. Describe how you will detect each condition and what you will return in each case.*
 
 ```
-[your answer here]
+(a) No tool calls: After each LLM call, check assistant_message.tool_calls. If it is
+    falsy (None or empty list), the LLM has a final answer. Return
+    assistant_message.content immediately, or a fallback string if content is None/empty.
+
+(b) MAX_TOOL_ROUNDS reached: The for loop runs at most MAX_TOOL_ROUNDS iterations. If
+    every iteration produced tool calls and the loop exhausts all rounds, execution falls
+    through to the code below the loop. There, make one final LLM call without the tools
+    parameter so the model is forced to produce a text response, then return that content.
 ```
 
 ---
@@ -132,7 +139,12 @@ for tool_call in assistant_message.tool_calls:
 *Once the loop exits because there are no more tool calls, how do you extract the text content from the response object? What field holds the string you should return?*
 
 ```
-[your answer here]
+response.choices[0].message.content
+
+The response has a choices list; index 0 is the assistant turn. Its .message object has
+a .content attribute that holds the final text string. Guard against None with a fallback:
+
+    return assistant_message.content or "I'm sorry, I wasn't able to generate a response."
 ```
 
 ---
@@ -145,19 +157,32 @@ for tool_call in assistant_message.tool_calls:
 
 ```
 Query: "How should I care for my calathea?"
-Round 1 tool call: [tool name, args]
-Round 2 tool call: [tool name, args] (if any)
-Final response: [brief description]
+Round 1 tool call: lookup_plant({"plant_name": "calathea"})
+  → Returns found=True with full calathea care dict (watering, light, humidity, etc.)
+Round 2 tool call: get_seasonal_conditions() [no season arg — auto-detects current month]
+  → Returns summer seasonal advice with detected_season=True
+Final response: Detailed calathea care advice citing the database entry, plus summer-specific
+  tips (increase humidity, keep out of direct sun, water consistently).
 ```
 
 **What happens when you ask about a plant that isn't in the database?**
 
 ```
-[describe the behavior you observed]
+lookup_plant returns {"found": False, "name": <input>, "message": "No plant matching '...'
+was found in the database. Do not invent specific care parameters..."}.
+
+The LLM reads the message field and follows its instructions: it tells the user the plant
+isn't in its database, offers brief general care guidance based on what the user described,
+and recommends consulting a trusted resource (e.g., the AHS or the plant's nursery tag)
+for precise watering schedules, light levels, and temperatures.
 ```
 
 **One thing about the tool call API that surprised you:**
 
 ```
-[your answer here]
+The assistant message containing tool_calls must be appended to the messages list before
+appending any tool result messages. The API enforces this ordering — a "tool" role message
+must immediately follow the assistant message that requested it. Forgetting this step (e.g.,
+appending only the tool results) causes an API error, even though conceptually the results
+are what you're adding.
 ```
